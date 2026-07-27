@@ -84,7 +84,7 @@ def follower(ball, player):
     return random.choice([UP, DOWN, STAY])
 
 
-def train_env(ai:PongAI, mode = 1):
+def train_env(ai:PongAI, mode = 1, frameSkip = 5):
     global FPS
     game = Pong()
     epsilon = False
@@ -92,18 +92,22 @@ def train_env(ai:PongAI, mode = 1):
     ballBehind = False
     if mode:
         epsilon = True
+    
+    state = None
+    action = STAY
+    new_state = None
+    reward = None
 
     run = True
     while run:
         # get state before action
-        state = (game.ball.x, game.ball.y, game.ball.dx, game.ball.dy, game.p1.y, game.p2.y)
-        action = None
-        new_state = None
-        reward = None
+        if step % frameSkip == 0:
+            state = (game.ball.x, game.ball.y, game.ball.dx, game.ball.dy, game.p1.y, game.p2.y)
 
         # get moves from AIs
-        move1 = ai.choose_action(state, epsilon)
-        action = move1
+        if step % frameSkip == 0:
+            move1 = ai.choose_action(state, epsilon)
+            action = move1
         move2 = follower(game.ball, game.p2)
 
         if move1 == UP:
@@ -125,7 +129,7 @@ def train_env(ai:PongAI, mode = 1):
         if game.ball.y - game.ball.rad + game.ball.dy < 0:
             game.ball.y = game.ball.rad
             game.ball.dy *= -1
-        elif game.ball.y + game.ball.rad + game.ball.dy > 601:
+        elif game.ball.y + game.ball.rad + game.ball.dy > windowHeight:
             game.ball.y = windowHeight - game.ball.rad
             game.ball.dy *= -1
         else:
@@ -139,6 +143,7 @@ def train_env(ai:PongAI, mode = 1):
         ):
             game.checkCollisions()
         
+
         new_state = (game.ball.x, game.ball.y, game.ball.dx, game.ball.dy, game.p1.y, game.p2.y)
 
         paddle_center = game.p1.y + paddleShape[1]//2
