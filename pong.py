@@ -105,14 +105,21 @@ class Pong:
 
 
 def follower(ball, player):
+    diff = ball.y - (player.y + paddleShape[1]//2)
+    if diff < -5:
+        return UP
+    elif diff > 5:
+        return DOWN
+    else:
+        return STAY
     if random.random() < 0.5:
         diff = ball.y - (player.y + paddleShape[1]//2)
-        if diff < -5:   # deadzone of 5 pixels
+        if diff < -5:
             return UP
         elif diff > 5:
             return DOWN
         else:
-            return STAY  # close enough, don't jitter
+            return STAY
     return random.choice([UP, DOWN, STAY])
 
 def train(ai1:PongAI, mode=1, frameSkip=4):
