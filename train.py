@@ -3,9 +3,9 @@ import torch
 import pong_train
 
 AI1 = pongAI.PongAI()
-# AI1.online_network.load_state_dict(torch.load("saved_models/RUN5_model_ep700.pth"))
+AI1.online_network.load_state_dict(torch.load("saved_models/RUN7_model_ep350.pth"))
 # torch.save(AI1.online_network.state_dict(), f'best_ones/BEST_MODEL3.pth')
-# AI1.update_target_network()
+AI1.update_target_network()
 print("Initial Q value:", AI1.avg_q_value())
 
 # RUN = "RUN4_"
@@ -31,7 +31,7 @@ def pure_train(RUN, episodes, epsl, decay):
             torch.save(AI1.online_network.state_dict(), f'saved_models/{RUN}model_ep{episode+1}.pth')
         if (episode+1)%20 == 0:
             print(AI1.avg_q_value())
-        if episode+1 == 500:
+        if episode+1 == 400:
             print("--- Mid-training test ---")
             for i in range(10):
                 winner, s1, s2 = pong_train.train_env(AI1, mode=0)
@@ -51,12 +51,12 @@ def visualize():
     import pong
     pygame.display.set_caption("PONG")
     pygame.init()
-    for i in range(20):
+    for i in range(10):
         winner, s1, s2 = pong.train(AI1, mode=0)
         print(f"Test {i+1}: {s1}-{s2}")
 
     pygame.quit()
 
-pure_train("RUN6_", 1000, 0.5, 0.995)
-pure_greed()
-# visualize()
+# pure_train("RUN7_", 800, 0.5, 0.995)
+# pure_greed()
+visualize()

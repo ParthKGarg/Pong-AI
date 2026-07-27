@@ -106,16 +106,17 @@ class Pong:
 
 def follower(ball, player):
     if random.random() < 0.5:
-        if ball.y < player.y + paddleShape[1]//2 :
+        diff = ball.y - (player.y + paddleShape[1]//2)
+        if diff < -5:   # deadzone of 5 pixels
             return UP
-        else:
+        elif diff > 5:
             return DOWN
+        else:
+            return STAY  # close enough, don't jitter
     return random.choice([UP, DOWN, STAY])
 
-
-def train(ai1:PongAI, mode = 1):
+def train(ai1:PongAI, mode=1, frameSkip=4):
     global FPS
-    # pygame.init()
     clock = pygame.time.Clock()
     game = Pong()
     epsilon = False
@@ -126,8 +127,6 @@ def train(ai1:PongAI, mode = 1):
 
     run = True
     while run:
-        clock.tick(FPS)
-
         for events in pygame.event.get():
             if events.type == pygame.QUIT:
                 run = False
@@ -139,93 +138,87 @@ def train(ai1:PongAI, mode = 1):
                 if events.key == pygame.K_SPACE:
                     FPS = 50 if FPS > 50 else 144
 
-        # get state before action
         state = (game.ball.x, game.ball.y, game.ball.dx, game.ball.dy, game.p1.y, game.p2.y)
-        action = None
-        new_state = None
-        reward = None
-
-        # get moves from AIs
         move1 = ai1.choose_action(state, epsilon)
         action = move1
         move2 = follower(game.ball, game.p2)
 
-        if move1 == UP:
-            if game.p1.y > paddleSpeed:
-                game.p1.y -= paddleSpeed
+        reward = 0
+        for _ in range(frameSkip):
+            clock.tick(FPS)
+
+            if move1 == UP:
+                if game.p1.y > paddleSpeed:
+                    game.p1.y -= paddleSpeed
+                else:
+                    game.p1.y = 0
+            if move1 == DOWN and game.p1.y < windowHeight - paddleShape[1] + paddleSpeed:
+                game.p1.y += paddleSpeed
+
+            if move2 == UP:
+                if game.p2.y > paddleSpeed:
+                    game.p2.y -= paddleSpeed
+                else:
+                    game.p2.y = 1
+            if move2 == DOWN and game.p2.y < windowHeight - paddleShape[1] + paddleSpeed:
+                game.p2.y += paddleSpeed
+
+            if game.ball.y - game.ball.rad + game.ball.dy < 0:
+                game.ball.y = game.ball.rad
+                game.ball.dy *= -1
+            elif game.ball.y + game.ball.rad + game.ball.dy > 601:
+                game.ball.y = windowHeight - game.ball.rad
+                game.ball.dy *= -1
             else:
-                game.p1.y = 0
-        if move1 == DOWN and game.p1.y < windowHeight - paddleShape[1] + paddleSpeed:
-            game.p1.y += paddleSpeed
+                game.ball.x += game.ball.dx
+                game.ball.y += game.ball.dy
 
-        if move2 == UP:
-            if game.p2.y > paddleSpeed:
-                game.p2.y -= paddleSpeed
+            if (
+                game.ball.x > game.p1.x + game.p1.shape[0]
+                and game.ball.x < game.p2.x
+                and (game.ball.x > 700 or game.ball.x < 100)
+            ):
+                game.checkCollisions()
+
+            new_state = (game.ball.x, game.ball.y, game.ball.dx, game.ball.dy, game.p1.y, game.p2.y)
+
+            paddle_center = game.p1.y + paddleShape[1]//2
+            dist = abs(paddle_center - game.ball.y)
+            denseReward = -dist/windowHeight
+
+            if game.ball.x > windowWidth + game.ball.rad:
+                game.p1.score += 1
+                reward += 1
+                ballBehind = False
+                game.resetGame()
+            elif game.ball.x < -game.ball.rad:
+                reward += 0
+                game.p2.score += 1
+                ballBehind = False
+                game.resetGame()
+            elif game.ball.x < game.p1.x and not ballBehind:
+                reward += -1
+                ballBehind = True
             else:
-                game.p2.y = 1
-        if move2 == DOWN and game.p2.y < windowHeight - paddleShape[1] + paddleSpeed:
-            game.p2.y += paddleSpeed
+                reward += 0
 
-        if game.ball.y - game.ball.rad + game.ball.dy < 0:
-            game.ball.y = game.ball.rad
-            game.ball.dy *= -1
-        elif game.ball.y + game.ball.rad + game.ball.dy > 601:
-            game.ball.y = windowHeight - game.ball.rad
-            game.ball.dy *= -1
-        else:
-            game.ball.x += game.ball.dx
-            game.ball.y += game.ball.dy
-        # game.ball.x += game.ball.dx
-        # game.ball.y += game.ball.dy
+            reward += 0.1 * denseReward
 
-        if (
-            game.ball.x > game.p1.x + game.p1.shape[0]
-            and game.ball.x < game.p2.x
-            and (game.ball.x > 700 or game.ball.x < 100)
-        ):
-            game.checkCollisions()
-        
-        new_state = (game.ball.x, game.ball.y, game.ball.dx, game.ball.dy, game.p1.y, game.p2.y)
+            game.redrawGameWindow()
 
-        paddle_center = game.p1.y + paddleShape[1]//2
-        dist = abs(paddle_center - game.ball.y)
-        denseReward = -dist/windowHeight
+            if game.p1.score >= MAX_SCORE or game.p2.score >= MAX_SCORE:
+                break
 
-        if game.ball.x > windowWidth + game.ball.rad:
-            game.p1.score += 1
-            reward = 1
-            ballBehind = False
-            game.resetGame()
-        elif game.ball.x < -game.ball.rad:
-            reward = 0
-            game.p2.score += 1
-            ballBehind = False
-            game.resetGame()
-        elif game.ball.x <game.p1.x and not ballBehind:
-            reward = -1
-            ballBehind = True
-        else:
-            reward = 0
-        
-        reward += 0.1 * denseReward
-
-        if state is None or action is None or new_state is None or reward is None:
-            raise ValueError("All values must be valid.")
         ai1.remember(state, action, new_state, reward)
-        if step%2==0:
+        if step % 2 == 0:
             ai1.train()
-        if step%50 == 0:
+        if step % 50 == 0:
             step = 0
             ai1.update_target_network()
         step += 1
 
-        
         if game.p1.score >= MAX_SCORE or game.p2.score >= MAX_SCORE:
-            print(f"Game ended. Player {1 if game.p1.score>= MAX_SCORE else 2} Won.")
+            print(f"Game ended. Player {1 if game.p1.score >= MAX_SCORE else 2} Won.")
             run = False
 
-        game.redrawGameWindow()
-
-    # pygame.quit()
     return (1, game.p1.score, game.p2.score) if game.p1.score >= MAX_SCORE else (2, game.p1.score, game.p2.score)
-
