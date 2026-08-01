@@ -76,11 +76,21 @@ class Pong:
 
 
 def follower(ball, player):
-    if random.random() < 0.5:
-        if ball.y < player.y + paddleShape[1]//2 :
+    # diff = ball.y - (player.y + paddleShape[1]//2)
+    # if diff < -5:
+    #     return UP
+    # elif diff > 5:
+    #     return DOWN
+    # else:
+    #     return STAY
+    if random.random() < 0.75:
+        diff = ball.y - (player.y + paddleShape[1]//2)
+        if diff < -5:
             return UP
-        else:
+        elif diff > 5:
             return DOWN
+        else:
+            return STAY
     return random.choice([UP, DOWN, STAY])
 
 
@@ -101,11 +111,9 @@ def train_env(ai:PongAI, mode = 1, frameSkip = 4):
     run = True
     while run:
         # get state before action
-        # if step % frameSkip == 0:
         state = (game.ball.x, game.ball.y, game.ball.dx, game.ball.dy, game.p1.y, game.p2.y)
 
         # get moves from AIs
-        # if step % frameSkip == 0:
         move1 = ai.choose_action(state, epsilon)
         action = move1
         move2 = follower(game.ball, game.p2)
@@ -168,7 +176,7 @@ def train_env(ai:PongAI, mode = 1, frameSkip = 4):
             else:
                 reward += 0
             
-            reward += 0.1 * denseReward
+            # reward += 0.1 * denseReward
 
             if game.p1.score >= MAX_SCORE or game.p2.score >= MAX_SCORE:
                 break
