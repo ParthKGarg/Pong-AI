@@ -1,6 +1,6 @@
 # Pong AI — Deep Q-Network (DQN)
 
-A Pong-playing AI built from scratch using Deep Q-Network (DQN) reinforcement learning with PyTorch and Pygame. The agent learns to play Pong through self-play against a stochastic opponent, achieving a **13/20 win rate** in pure greedy evaluation after 800 training episodes.
+A Pong-playing AI built from scratch using Deep Q-Network (DQN) reinforcement learning with PyTorch and Pygame. The agent learns to play Pong through self-play against a stochastic opponent, achieving an **80% win rate against a perfect tracking opponent** in pure greedy evaluation after just 300 training episodes.
 
 ---
 
@@ -36,8 +36,9 @@ Input(6) → Linear → ReLU → Linear → Output(3)
 ### DQN Components
 - **Experience Replay** — replay buffer of 100,000 experiences, randomly sampled in batches of 64
 - **Target Network** — frozen copy of online network, synced every 50 steps to stabilize training
-- **Epsilon-Greedy Exploration** — starts at ε=0.5, decays to ε=0.05 over training
+- **Epsilon-Greedy Exploration** — starts at ε=0.5, decays to ε=0.15 floor over training
 - **Gradient Clipping** — prevents exploding gradients during backpropagation
+- **Frame Skipping (N=4)** — AI decides once every 4 frames and holds that action, matching DeepMind's Atari DQN approach
 
 ---
 
@@ -48,7 +49,7 @@ Input(6) → Linear → ReLU → Linear → Output(3)
 | Ball scores past opponent | `+1` |
 | Ball crosses own paddle x-position | `-1` (once per rally) |
 | Ball scored past own side | `0` (already penalized above) |
-| Proximity to ball (dense reward) | `±0.1 × (-distance/height)` |
+| Proximity to ball (dense reward) | `0.1 × (-distance/height)` |
 | All other frames | `0` |
 
 The dense reward provides per-frame positioning signal, preventing the sparse `+1/-1` from being too infrequent to learn from effectively.
@@ -63,20 +64,20 @@ The dense reward provides per-frame positioning signal, preventing the sparse `+
 | Learning rate | `0.0001` (halved to `0.00005` at ep 500) |
 | Gamma (discount) | `0.99` |
 | Epsilon start | `0.5` |
-| Epsilon min | `0.05` |
+| Epsilon min | `0.15` |
 | Epsilon decay | `0.995` per episode |
 | Batch size | `64` |
 | Replay buffer | `100,000` |
 | Target network sync | Every `50` steps |
-| Training frequency | Every `4` frames |
+| Frame skip | `4` frames per decision |
 
 ### Opponent
 The AI trains against a **stochastic follower** — 50% of the time it tracks the ball, 50% it makes a random move. This gives the AI a realistic chance to score while still providing meaningful opposition.
 
 ### Training Curve
-- Episodes 1–300: High exploration, agent learns basic ball tracking
-- Episodes 300–600: Exploration decays, policy solidifies
-- Episodes 600–800: Mostly exploitation, policy refinement
+- Episodes 1–240: High exploration (ε decaying from 0.5 → 0.15), agent learns basic ball tracking
+- Episodes 240–300: Fixed exploration at ε=0.15, policy solidifies
+- Episode 300: Peak performance reached — policy stable, no degradation observed
 
 ---
 
@@ -84,10 +85,26 @@ The AI trains against a **stochastic follower** — 50% of the time it tracks th
 
 | Metric | Value |
 |--------|-------|
-| Pure greedy win rate | 13/20 (65%) |
-| Avg point differential | ~3.0 at episode 800 |
-| Training episodes | 800 |
-| Training time | ~1 hour (CPU) |
+| Pure greedy vs stochastic follower | 20/20 (100%) |
+| Pure greedy vs perfect follower | 15-16/20 (75-80%) |
+| Avg point differential | ~6.8 at episode 300 |
+| Training episodes to peak | 300 |
+| Training time | ~30 min (CPU) |
+
+---
+
+## Key Design Decision — Frame Skipping
+
+Frame skipping was the single most impactful change in this project. Without it, the AI made a decision every frame (~7ms at 144fps), where state changes between frames were negligible. This meant the replay buffer filled with nearly identical experiences, making it impossible for Q-values to differentiate between actions.
+
+With frame skipping (N=4), each decision covers meaningful ball movement. The network sees genuinely different states between decisions, making each replay buffer experience far more informative.
+
+| Metric | Without Frame Skip | With Frame Skip |
+|--------|-------------------|-----------------|
+| Win rate vs stochastic follower | 65% | 100% |
+| Win rate vs perfect follower | — | 75-80% |
+| Episodes to peak | 800 | 300 |
+| Training stability | Degraded after ep700 | Stable throughout |
 
 ---
 
@@ -139,10 +156,12 @@ AI1.epsilon = 0  # pure greedy
 
 ## Key Learnings
 
+- **Frame skipping** is critical for continuous action games — single-frame decisions produce nearly identical states, making Q-value differentiation impossible
 - **Q-value divergence** is a real problem — solved with small weight initialization, gradient clipping, and low learning rate
 - **Reward shaping** is a double-edged sword — dense rewards speed up learning but risk misaligned incentives
 - **Catastrophic forgetting** happens when fine-tuning a good model — larger replay buffer and less frequent training mitigates this
 - **Tabular Q-learning** is infeasible for continuous state spaces — DQN's neural network generalizes across similar states
+- **Credit assignment** in sparse reward environments is handled by gamma — rewards propagate backwards through the Bellman equation over many training steps
 
 ---
 
